@@ -1,1359 +1,882 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Block Blast Classic</title>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800;900&family=Noto+Sans+JP:wght@700;900&display=swap');
-        
-        :root {
-            --bg-color: #0b0f19;
-            --panel-bg: rgba(21, 31, 50, 0.85);
-            --border-color: #1e293b;
-            --text-color: #f1f5f9;
-            --text-muted: #94a3b8;
-            --neon-blue: #06b6d4;
-            --neon-gold: #fbbf24;
-            --neon-green: #10b981;
-            --grid-bg: #151f32;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-            user-select: none;
-            -webkit-user-select: none;
-        }
-
-        body {
-            font-family: 'Outfit', 'Noto Sans JP', sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 8px;
-            overflow: hidden;
-            touch-action: none; /* ブラウザ標準のスクロールやピンチズームを完全無効化 */
-        }
-
-        /* 画面全体の縦幅を超えないための100vh基準コンテナ */
-        .app-container {
-            width: 100%;
-            max-width: 440px;
-            height: 100%;
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            align-items: center;
-            gap: 6px; /* 盤面を最大化するため、要素間の隙間を少しタイトに調整 */
-            box-sizing: border-box;
-        }
-
-        /* ヘッダーとスコアボード */
-        .header {
-            width: 100%;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
-            flex-shrink: 0;
-        }
-
-        .title-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 0 4px;
-        }
-
-        .title {
-            font-size: 18px;
-            font-weight: 900;
-            letter-spacing: 2px;
-            background: linear-gradient(to right, #22d3ee, #06b6d4, #3b82f6);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .btn-info {
-            background: rgba(255, 255, 255, 0.08);
-            border: 1px solid rgba(255, 255, 255, 0.15);
-            color: var(--text-muted);
-            width: 26px;
-            height: 26px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            font-size: 13px;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-
-        .btn-info:hover {
-            background: rgba(255, 255, 255, 0.15);
-            color: #fff;
-        }
-
-        .scoreboard {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 6px;
-        }
-
-        .score-box {
-            background-color: var(--panel-bg);
-            border: 1px solid var(--border-color);
-            border-radius: 10px;
-            padding: 4px;
-            text-align: center;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .score-label {
-            font-size: 8px;
-            font-weight: 800;
-            color: var(--text-muted);
-            letter-spacing: 1px;
-            margin-bottom: 1px;
-        }
-
-        .score-val {
-            font-size: 14px;
-            font-weight: 900;
-        }
-
-        .combo-active {
-            color: var(--neon-green) !important;
-        }
-
-        /* ゲームボード：画面の高さに合わせて自動縮小するアスペクト比（最大サイズを大きく引き上げ） */
-        .board-container {
-            width: 100%;
-            max-width: min(100%, 60vh); /* マス目を大きくするため 54vh から 60vh に引き上げ */
-            aspect-ratio: 1 / 1;
-            background-color: #090d16;
-            border: 4px solid #111827;
-            border-radius: 16px;
-            padding: 6px;
-            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.6);
-            box-sizing: border-box;
-            flex-shrink: 1;
-        }
-
-        .grid-board {
-            display: grid;
-            grid-template-columns: repeat(10, 1fr);
-            grid-template-rows: repeat(10, 1fr);
-            gap: 3px;
-            width: 100%;
-            height: 100%;
-        }
-
-        /* 盤面セルの高品質な3D立体＆ネオンビジュアル */
-        .board-cell {
-            background-color: var(--grid-bg);
-            border-radius: 5px;
-            border: 1px solid rgba(255, 255, 255, 0.02);
-            box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.4);
-            position: relative;
-            transition: background-color 0.1s, box-shadow 0.1s;
-        }
-
-        .board-cell.has-block {
-            border: none;
-            box-shadow: 
-                inset 0 2px 0 rgba(255, 255, 255, 0.4), 
-                inset 0 -2.5px 0 rgba(0, 0, 0, 0.35),
-                0 2px 4px rgba(0, 0, 0, 0.5);
-        }
-
-        /* 消滅時のポップアウトアニメーション */
-        @keyframes popOut {
-            0% { transform: scale(1); opacity: 1; filter: brightness(1.8); }
-            40% { transform: scale(1.15); opacity: 0.9; }
-            100% { transform: scale(0); opacity: 0; }
-        }
-
-        .cell-clearing {
-            animation: popOut 0.42s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
-            z-index: 10;
-        }
-
-        /* ホルダーエリア (3ブロック)：絶対に画面外にはみ出さないように比率を微調整 */
-        .holders-container {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 8px;
-            height: 17vh;
-            max-height: 120px;
-            min-height: 75px;
-            width: 100%;
-            box-sizing: border-box;
-            flex-shrink: 0;
-        }
-
-        .block-holder {
-            background-color: rgba(9, 13, 22, 0.5);
-            border: 1.5px dashed rgba(255, 255, 255, 0.08);
-            border-radius: 14px;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            touch-action: none;
-            cursor: grab;
-            transition: all 0.25s cubic-bezier(0.25, 1, 0.5, 1);
-            box-sizing: border-box;
-        }
-
-        /* タップ・ドラッグ時のリフトアップとネオン枠（わかりやすさ強化） */
-        .block-holder.selected {
-            border: 1.5px solid var(--neon-green);
-            background-color: rgba(16, 185, 129, 0.08);
-            box-shadow: 0 0 15px rgba(16, 185, 129, 0.25);
-        }
-
-        /* 選択されたホルダーの中のブロック形状を「ふわっ」と浮かせる */
-        .block-holder.selected .block-shape-grid {
-            transform: translateY(-8px) scale(1.08);
-            filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.5));
-        }
-
-        /* 盤面セルとサイズ感が連動する動的グリッド（サイズ感不一致の修正） */
-        .block-shape-grid {
-            display: grid;
-            gap: 2px;
-            justify-content: center;
-            align-content: center;
-            pointer-events: none;
-            transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), filter 0.25s;
-        }
-
-        .preview-cell {
-            border-radius: 4px;
-        }
-
-        .preview-cell.filled {
-            box-shadow: 
-                inset 0 1px 0 rgba(255, 255, 255, 0.4), 
-                inset 0 -1.5px 0 rgba(0, 0, 0, 0.3),
-                0 1.5px 2px rgba(0,0,0,0.3);
-        }
-
-        /* ドラッグ中の拡大ビジュアルProxy要素（JS側でボードサイズとシンクロ） */
-        .drag-proxy-active {
-            position: fixed;
-            pointer-events: none;
-            z-index: 9999;
-            transform: scale(1.15);
-            opacity: 0.95;
-            filter: drop-shadow(0 10px 15px rgba(0,0,0,0.6));
-        }
-
-        .block-shape-grid-proxy {
-            display: grid;
-            gap: 2.5px;
-            justify-content: center;
-            align-items: center;
-            pointer-events: none;
-        }
-
-        .preview-cell-proxy {
-            border-radius: 4px;
-        }
-
-        /* 操作ガイドテキスト（よりわかりやすく、リッチに） */
-        .guide-box {
-            background: rgba(21, 31, 50, 0.6);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 16px;
-            padding: 6px 12px;
-            font-size: 10px;
-            color: var(--text-muted);
-            min-height: 28px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 600;
-            width: 90%;
-            max-width: 380px;
-            margin: 0 auto;
-            box-shadow: inset 0 1px 3px rgba(0,0,0,0.2);
-            flex-shrink: 0;
-            text-align: center;
-            transition: all 0.2s ease;
-        }
-
-        /* モーダルポップアップ設計 */
-        .modal-overlay {
-            position: fixed;
-            inset: 0;
-            background-color: rgba(3, 7, 18, 0.85);
-            backdrop-filter: blur(4px);
-            z-index: 10000;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s ease;
-        }
-
-        .modal-overlay.show {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .modal-content {
-            background-color: #111827;
-            border: 1px solid var(--border-color);
-            border-radius: 20px;
-            padding: 22px;
-            width: 88%;
-            max-width: 320px;
-            text-align: center;
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8);
-            transform: scale(0.9);
-            transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-        }
-
-        .modal-overlay.show .modal-content {
-            transform: scale(1);
-        }
-
-        .modal-icon {
-            width: 48px;
-            height: 48px;
-            background: rgba(239, 68, 68, 0.1);
-            border: 1px solid rgba(239, 68, 68, 0.2);
-            color: #ef4444;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 20px;
-            margin: 0 auto 10px;
-        }
-
-        .modal-title {
-            font-size: 18px;
-            font-weight: 900;
-            margin-bottom: 6px;
-            letter-spacing: 1px;
-        }
-
-        .modal-desc {
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-bottom: 14px;
-        }
-
-        .modal-stats {
-            background-color: rgba(0, 0, 0, 0.4);
-            border-radius: 12px;
-            padding: 12px;
-            margin-bottom: 16px;
-            display: flex;
-            flex-direction: column;
-            gap: 6px;
-        }
-
-        .stat-row {
-            display: flex;
-            justify-content: space-between;
-            font-size: 12px;
-        }
-
-        .stat-label {
-            color: var(--text-muted);
-        }
-
-        .stat-val {
-            font-weight: bold;
-        }
-
-        .btn-restart {
-            width: 100%;
-            background: linear-gradient(135deg, #fbbf24, #f59e0b);
-            color: #000;
-            border: none;
-            border-radius: 10px;
-            padding: 10px;
-            font-weight: 900;
-            font-size: 14px;
-            cursor: pointer;
-            box-shadow: 0 8px 12px -3px rgba(245, 158, 11, 0.35);
-            transition: transform 0.1s;
-        }
-
-        .btn-restart:active {
-            transform: scale(0.97);
-        }
-
-        .rule-list {
-            text-align: left;
-            font-size: 11px;
-            color: #cbd5e1;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            margin-bottom: 18px;
-            padding-left: 12px;
-        }
-
-        .rule-list li {
-            line-height: 1.4;
-        }
-
-        .btn-close-info {
-            width: 100%;
-            background-color: #374151;
-            color: #fff;
-            border: none;
-            border-radius: 10px;
-            padding: 9px;
-            font-weight: bold;
-            font-size: 12px;
-            cursor: pointer;
-        }
-
-        /* 警告メッセージポップアップ */
-        #custom-alert {
-            position: fixed;
-            bottom: 30px;
-            left: 50%;
-            transform: translateX(-50%) translateY(15px);
-            background-color: #1e293b;
-            border: 1px solid var(--border-color);
-            color: #fff;
-            padding: 9px 18px;
-            border-radius: 10px;
-            font-size: 11px;
-            font-weight: bold;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.5);
-            opacity: 0;
-            pointer-events: none;
-            transition: opacity 0.3s, transform 0.3s;
-            z-index: 100000;
-            text-align: center;
-            white-space: nowrap;
-        }
-
-        #custom-alert.show {
-            opacity: 1;
-            transform: translateX(-50%) translateY(0);
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>未来を耕す、自分を育てる。｜次世代農業高校</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Google Fonts (Noto Sans JP) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+  <style>
+    body {
+      font-family: 'Noto Sans JP', sans-serif;
+      scroll-behavior: smooth;
+    }
+    .text-shadow {
+      text-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+    }
+  </style>
 </head>
-<body>
+<body class="bg-slate-50 text-slate-800 antialiased">
 
-    <div class="app-container">
+  <!-- 1. 追従ヘッダー -->
+  <header class="sticky top-0 z-50 bg-white/95 backdrop-blur-md shadow-sm transition-all duration-300">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 sm:h-20 flex items-center justify-between">
+      <div class="flex items-center space-x-2">
+        <div class="bg-emerald-600 text-white p-2 rounded-lg">
+          <i data-lucide="sprout" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <span class="text-xs text-emerald-600 font-bold block tracking-wider">未来を耕す、自分を育てる</span>
+          <span class="text-base sm:text-lg font-black tracking-tight text-slate-900">アグリテック高等学院</span>
+        </div>
+      </div>
+      <nav class="hidden md:flex items-center space-x-6">
+        <a href="#about" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition">農業の魅力</a>
+        <a href="#courses" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition">学べること</a>
+        <a href="#life" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition">学校生活</a>
+        <a href="#career" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition">進路・実績</a>
+        <a href="#faq" class="text-sm font-medium text-slate-600 hover:text-emerald-600 transition">よくある質問</a>
+      </nav>
+      <div>
+        <a href="#cta" class="inline-flex items-center justify-center px-4 py-2 sm:px-5 sm:py-2.5 text-sm font-bold text-white bg-emerald-600 hover:bg-emerald-500 rounded-full shadow-md shadow-emerald-200 transition-all duration-200 hover:-translate-y-0.5">
+          <i data-lucide="calendar" class="w-4 h-4 mr-2"></i>
+          体験入学に申し込む
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- 2. ファーストビュー (Hero Section) -->
+  <section class="relative min-h-[calc(100vh-5rem)] flex items-center justify-center overflow-hidden bg-slate-900">
+    <!-- 背景ビジュアル（ダミー画像を重ねたオーバーレイ。農業ドローンや緑豊かな背景を連想させるプレースホルダー） -->
+    <div class="absolute inset-0 bg-cover bg-center opacity-40 mix-blend-overlay" style="background-image: url('https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&q=80&w=1200');"></div>
+    <div class="absolute inset-0 bg-gradient-to-tr from-emerald-950 via-slate-900/90 to-transparent"></div>
+    
+    <!-- 装飾的な光の円 -->
+    <div class="absolute top-1/4 left-1/4 w-96 h-96 bg-emerald-500/20 rounded-full blur-3xl"></div>
+    <div class="absolute bottom-1/4 right-1/4 w-96 h-96 bg-sky-500/20 rounded-full blur-3xl"></div>
+
+    <div class="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center z-10">
+      <!-- バッジ -->
+      <div class="inline-flex items-center space-x-2 bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold mb-8 animate-pulse">
+        <i data-lucide="sparkles" class="w-4 h-4"></i>
+        <span>オープンキャンパス受付中！体験授業予約スタート</span>
+      </div>
+
+      <!-- メインコピー -->
+      <h1 class="text-3xl sm:text-5xl lg:text-6xl font-black text-white tracking-tight leading-tight sm:leading-none mb-6">
+        君の手で、未来の<span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">「食」</span>と<br class="sm:hidden">
+        <span class="text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-sky-400">「テクノロジー」</span>を動かせ。
+      </h1>
+
+      <!-- サブコピー -->
+      <p class="max-w-2xl mx-auto text-base sm:text-xl text-slate-300 leading-relaxed mb-10">
+        地球にやさしいスマート農業から、毎日の笑顔を作るおいしいビジネスまで。<br class="hidden sm:inline">
+        ここは、最先端の「いのちの科学」を学ぶ場所。
+      </p>
+
+      <!-- アクションボタン -->
+      <div class="flex flex-col sm:flex-row items-center justify-center gap-4">
+        <a href="#cta" class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 text-base font-bold text-slate-900 bg-gradient-to-r from-emerald-400 to-teal-300 hover:from-emerald-300 hover:to-teal-200 rounded-full shadow-lg shadow-emerald-900/30 transform transition hover:-translate-y-1">
+          <i data-lucide="arrow-right-circle" class="w-5 h-5 mr-2"></i>
+          オープンキャンパスに申し込む（無料）
+        </a>
+        <a href="#courses" class="w-full sm:w-auto inline-flex items-center justify-center px-8 py-4 text-base font-bold text-white border border-white/20 hover:bg-white/10 rounded-full backdrop-blur-sm transition">
+          <i data-lucide="book-open" class="w-5 h-5 mr-2"></i>
+          4つのコースを見る
+        </a>
+      </div>
+
+      <!-- 下矢印 -->
+      <div class="absolute bottom-8 left-1/2 transform -translate-x-1/2 animate-bounce hidden sm:block">
+        <a href="#about" class="text-white/60 hover:text-white transition">
+          <span class="text-xs tracking-widest block mb-1">SCROLL</span>
+          <i data-lucide="chevron-down" class="w-6 h-6 mx-auto"></i>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- 3. 導入 (Introduction) -->
+  <section id="about" class="py-20 sm:py-32 bg-white relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="lg:grid lg:grid-cols-12 lg:gap-16 items-center">
+        <!-- テキストエリア -->
+        <div class="lg:col-span-7 space-y-6">
+          <div class="inline-flex items-center space-x-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs sm:text-sm font-bold">
+            <i data-lucide="info" class="w-4 h-4"></i>
+            <span>実はいま、一番アツい成長産業</span>
+          </div>
+          <h2 class="text-2xl sm:text-4xl font-black text-slate-900 leading-tight">
+            「土をいじるだけ」の時代は、もう終わった。<br>
+            実は今、農業が一番カッコいい！
+          </h2>
+          <p class="text-slate-600 text-base sm:text-lg leading-relaxed">
+            今、世界中で「食」と「環境」の価値が見直されています。私たちが学ぶのは、ただ作物や動物を育てることだけではありません。
+          </p>
+          <p class="text-slate-600 text-base sm:text-lg leading-relaxed">
+            AIやドローンを使った効率的な「スマート農業」、地球温暖化に立ち向かう「バイオテクノロジー」、そして、作ったものをブランド化して世界へ届ける「フードビジネス」。農業は今、もっとも新しく、もっともクリエイティブな分野です。
+          </p>
+
+          <!-- キーワードカード -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4">
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start space-x-3">
+              <div class="bg-emerald-100 text-emerald-700 p-2 rounded-lg shrink-0">
+                <i data-lucide="cpu" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-900 text-sm">IT ✕ テクノロジー</h4>
+                <p class="text-xs text-slate-500 mt-1">ドローンやセンサーを用いた先進農法</p>
+              </div>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start space-x-3">
+              <div class="bg-sky-100 text-sky-700 p-2 rounded-lg shrink-0">
+                <i data-lucide="globe" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-900 text-sm">地球への貢献</h4>
+                <p class="text-xs text-slate-500 mt-1">環境破壊や温暖化を防ぐバイオ技術</p>
+              </div>
+            </div>
+            <div class="p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start space-x-3">
+              <div class="bg-amber-100 text-amber-700 p-2 rounded-lg shrink-0">
+                <i data-lucide="trending-up" class="w-5 h-5"></i>
+              </div>
+              <div>
+                <h4 class="font-bold text-slate-900 text-sm">ビジネス・起業</h4>
+                <p class="text-xs text-slate-500 mt-1">ブランド発案から流通・EC販売まで</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ビジュアルエリア（グリッド画像風表現） -->
+        <div class="lg:col-span-5 mt-12 lg:mt-0 grid grid-cols-2 gap-4">
+          <div class="space-y-4">
+            <div class="rounded-2xl overflow-hidden shadow-md h-48 sm:h-64 relative group">
+              <img src="https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&q=80&w=400" alt="スマート農業" class="w-full h-full object-cover transition duration-300 group-hover:scale-105">
+              <div class="absolute bottom-2 left-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md">Smart Agric</div>
+            </div>
+            <div class="rounded-2xl overflow-hidden shadow-md h-36 sm:h-48 relative group">
+              <img src="https://images.unsplash.com/photo-1530595467537-0b5996c41f2d?auto=format&fit=crop&q=80&w=400" alt="アニマルケア" class="w-full h-full object-cover transition duration-300 group-hover:scale-105">
+              <div class="absolute bottom-2 left-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md">Animal Care</div>
+            </div>
+          </div>
+          <div class="space-y-4 pt-8">
+            <div class="rounded-2xl overflow-hidden shadow-md h-36 sm:h-48 relative group">
+              <img src="https://images.unsplash.com/photo-1595974482597-4b8da8879bc5?auto=format&fit=crop&q=80&w=400" alt="バイオサイエンス" class="w-full h-full object-cover transition duration-300 group-hover:scale-105">
+              <div class="absolute bottom-2 left-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md">Bio Science</div>
+            </div>
+            <div class="rounded-2xl overflow-hidden shadow-md h-48 sm:h-64 relative group">
+              <img src="https://images.unsplash.com/photo-1511556532299-8f662fc26c06?auto=format&fit=crop&q=80&w=400" alt="フードクリエイト" class="w-full h-full object-cover transition duration-300 group-hover:scale-105">
+              <div class="absolute bottom-2 left-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-md">Food Business</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. 学べること (Courses & Curriculum) -->
+  <section id="courses" class="py-20 sm:py-32 bg-slate-50">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-emerald-600 font-bold tracking-widest text-sm uppercase block mb-3">COURSES</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-slate-900">
+          キミの「やってみたい！」がきっと見つかる4つのコース
+        </h2>
+        <p class="text-slate-500 mt-4">座学だけでなく五感を使って学ぶ、これまでにない新しい体験型カリキュラム。</p>
+      </div>
+
+      <!-- コース選択タブ -->
+      <div class="flex flex-wrap justify-center gap-2 sm:gap-4 mb-10">
+        <button onclick="switchTab('tab-smart')" id="btn-tab-smart" class="tab-btn px-6 py-3 rounded-full text-sm font-bold transition-all duration-200 bg-emerald-600 text-white shadow-md shadow-emerald-100">
+          ① スマートアグリ
+        </button>
+        <button onclick="switchTab('tab-food')" id="btn-tab-food" class="tab-btn px-6 py-3 rounded-full text-sm font-bold transition-all duration-200 bg-white text-slate-600 hover:bg-slate-100">
+          ② フードクリエイト
+        </button>
+        <button onclick="switchTab('tab-bio')" id="btn-tab-bio" class="tab-btn px-6 py-3 rounded-full text-sm font-bold transition-all duration-200 bg-white text-slate-600 hover:bg-slate-100">
+          ③ バイオサイエンス
+        </button>
+        <button onclick="switchTab('tab-animal')" id="btn-tab-animal" class="tab-btn px-6 py-3 rounded-full text-sm font-bold transition-all duration-200 bg-white text-slate-600 hover:bg-slate-100">
+          ④ アニマルケア
+        </button>
+      </div>
+
+      <!-- コース詳細コンテンツ（タブ対応） -->
+      <div class="bg-white rounded-3xl p-6 sm:p-10 shadow-lg border border-slate-100">
         
-        <!-- ヘッダーエリア -->
-        <div class="header">
-            <div class="title-bar">
-                <h1 class="title">BLOCK BLAST</h1>
-                <button id="btn-info" class="btn-info">?</button>
+        <!-- タブ1: スマートアグリ -->
+        <div id="tab-smart" class="tab-content lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+          <div class="lg:col-span-6 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-emerald-50 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">
+              <i data-lucide="cpu" class="w-4 h-4"></i>
+              <span>作物 ✕ 野菜 ✕ 最先端IT</span>
             </div>
-
-            <!-- スコアボード -->
-            <div class="scoreboard">
-                <div class="score-box">
-                    <span class="score-label">SCORE</span>
-                    <span id="current-score" class="score-val">0</span>
-                </div>
-                <div class="score-box">
-                    <span class="score-label" style="color:var(--neon-gold)">BEST</span>
-                    <span id="high-score" class="score-val" style="color:var(--neon-gold)">0</span>
-                </div>
-                <div class="score-box">
-                    <span class="score-label" id="lbl-combo">COMBO</span>
-                    <span id="combo-count" class="score-val" style="color:var(--neon-green)">x0</span>
-                </div>
-            </div>
-        </div>
-
-        <div id="toast-container" style="position: absolute; width:100%; display:flex; justify-content:center; pointer-events:none; z-index:999;"></div>
-
-        <!-- 10x10 ゲームグリッド（最大サイズ拡大調整版） -->
-        <div class="board-container">
-            <div id="game-grid" class="grid-board">
-                <!-- JSで100個のマスを生成 -->
-            </div>
-        </div>
-
-        <!-- 操作ガイド -->
-        <div id="guide-box-el" class="guide-box">
-            <p id="guide-text">💡 下のブロックをスライドするか、タップして選んでね！</p>
-        </div>
-
-        <!-- ホルダーエリア (3ブロック候補) -->
-        <div class="holders-container">
-            <div id="holder-0" class="block-holder" data-index="0"></div>
-            <div id="holder-1" class="block-holder" data-index="1"></div>
-            <div id="holder-2" class="block-holder" data-index="2"></div>
-        </div>
-
-    </div>
-
-    <!-- ゲームオーバーモーダル -->
-    <div id="gameover-modal" class="modal-overlay">
-        <div class="modal-content">
-            <div class="modal-icon">☠</div>
-            <h2 class="modal-title">NO MORE MOVES</h2>
-            <p class="modal-desc">ブロックを配置できるマスがなくなりました！</p>
+            <h3 class="text-2xl sm:text-3xl font-black text-slate-900">スマートアグリコース</h3>
+            <p class="text-emerald-600 font-bold text-lg">「データとドローンで、農業をクールにデザインする。」</p>
+            <p class="text-slate-600 leading-relaxed">
+              従来の栽培方法に加え、ドローンを用いた生育状況の確認や、AI搭載の水分センサーによる自動制御など、近代デジタル技術を総合的に習得します。未来のアグリカルチャーをけん引するイノベーターを目指します。
+            </p>
             
-            <div class="modal-stats">
-                <div class="stat-row">
-                    <span class="stat-label">獲得スコア:</span>
-                    <span id="final-score" class="stat-val" style="font-size:14px;">0</span>
-                </div>
-                <div class="stat-row">
-                    <span class="stat-label">最大コンボ:</span>
-                    <span id="final-combo" class="stat-val" style="color:var(--neon-green)">x0</span>
-                </div>
+            <div class="border-t border-slate-100 pt-6">
+              <h4 class="font-bold text-slate-900 mb-3 flex items-center">
+                <i data-lucide="award" class="w-5 h-5 mr-2 text-emerald-600"></i>
+                取得を目指す主な資格
+              </h4>
+              <div class="flex flex-wrap gap-2">
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">ドローン操縦資格（二等無人航空機操縦士等）</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">大型特殊免許（トラクターなど）</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">危険物取扱者乙種第4類</span>
+              </div>
             </div>
-
-            <button id="btn-restart" class="btn-restart">もう一度遊ぶ</button>
+          </div>
+          <div class="lg:col-span-6 mt-8 lg:mt-0">
+            <div class="relative rounded-2xl overflow-hidden shadow-lg h-64 sm:h-96">
+              <img src="https://images.unsplash.com/photo-1563514223727-6f17f4106854?auto=format&fit=crop&q=80&w=600" alt="スマート農業" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent"></div>
+              <span class="absolute bottom-4 left-4 text-white text-sm font-bold flex items-center">
+                <i data-lucide="play" class="w-4 h-4 mr-1"></i> 実習：ドローンを活用したマルチスペクトル撮影
+              </span>
+            </div>
+          </div>
         </div>
-    </div>
 
-    <!-- 遊び方・インフォモーダル -->
-    <div id="info-modal" class="modal-overlay">
-        <div class="modal-content" style="max-width:320px;">
-            <h3 class="modal-title" style="font-size:15px; color:var(--neon-blue); margin-bottom:10px;">
-                💡 BLOCK BLAST 遊び方
+        <!-- タブ2: フードクリエイト（初期非表示） -->
+        <div id="tab-food" class="tab-content hidden lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+          <div class="lg:col-span-6 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-amber-50 text-amber-700 px-3 py-1 rounded-full text-xs font-bold">
+              <i data-lucide="cookie" class="w-4 h-4"></i>
+              <span>食品科学 ✕ 加工 ✕ マーケティング</span>
+            </div>
+            <h3 class="text-2xl sm:text-3xl font-black text-slate-900">フードクリエイトコース</h3>
+            <p class="text-amber-600 font-bold text-lg">「おいしい！を科学して、新しいヒット商品を作る。」</p>
+            <p class="text-slate-600 leading-relaxed">
+              パンやジャム、チーズなど学校の農場で収穫された原材料を使用し、加工食品づくりを深く学びます。食品安全の国際基準（HACCP）を意識した高度な衛生管理から、商品のパッケージデザインや販売戦略まで、「食べる」のビジネス全体を学びます。
+            </p>
+            
+            <div class="border-t border-slate-100 pt-6">
+              <h4 class="font-bold text-slate-900 mb-3 flex items-center">
+                <i data-lucide="award" class="w-5 h-5 mr-2 text-amber-600"></i>
+                取得を目指す主な資格
+              </h4>
+              <div class="flex flex-wrap gap-2">
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">食品衛生責任者</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">リテールマーケティング（販売士）検定</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">製菓・パン製造関連基礎資格</span>
+              </div>
+            </div>
+          </div>
+          <div class="lg:col-span-6 mt-8 lg:mt-0">
+            <div class="relative rounded-2xl overflow-hidden shadow-lg h-64 sm:h-96">
+              <img src="https://images.unsplash.com/photo-1556910103-1c02745aae4d?auto=format&fit=crop&q=80&w=600" alt="食品開発" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent"></div>
+              <span class="absolute bottom-4 left-4 text-white text-sm font-bold flex items-center">
+                <i data-lucide="play" class="w-4 h-4 mr-1"></i> 実習：無添加ジャムの試作開発・殺菌検査
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- タブ3: バイオサイエンス（初期非表示） -->
+        <div id="tab-bio" class="tab-content hidden lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+          <div class="lg:col-span-6 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-sky-50 text-sky-700 px-3 py-1 rounded-full text-xs font-bold">
+              <i data-lucide="test-tube" class="w-4 h-4"></i>
+              <span>植物バイオ ✕ 環境 ✕ フラワーデザイン</span>
+            </div>
+            <h3 class="text-2xl sm:text-3xl font-black text-slate-900">バイオサイエンスコース</h3>
+            <p class="text-sky-600 font-bold text-lg">「ミクロの技術で、地球の未来とお花を救う。」</p>
+            <p class="text-slate-600 leading-relaxed">
+              試験管の中で植物のクローンを培養する組織培養技術や、遺伝子の不思議を追究。美しいフラワーアレンジメントや都市緑化など、緑あふれる環境づくりの技術と感性を磨きます。
+            </p>
+            
+            <div class="border-t border-slate-100 pt-6">
+              <h4 class="font-bold text-slate-900 mb-3 flex items-center">
+                <i data-lucide="award" class="w-5 h-5 mr-2 text-sky-600"></i>
+                取得を目指す主な資格
+              </h4>
+              <div class="flex flex-wrap gap-2">
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">バイオ技術者認定試験</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">園芸装飾技能士（国家資格）</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">フラワー装飾技能士</span>
+              </div>
+            </div>
+          </div>
+          <div class="lg:col-span-6 mt-8 lg:mt-0">
+            <div class="relative rounded-2xl overflow-hidden shadow-lg h-64 sm:h-96">
+              <img src="https://images.unsplash.com/photo-1581093196867-9f0c3137a2a5?auto=format&fit=crop&q=80&w=600" alt="バイオサイエンス" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent"></div>
+              <span class="absolute bottom-4 left-4 text-white text-sm font-bold flex items-center">
+                <i data-lucide="play" class="w-4 h-4 mr-1"></i> 実習：クリーンベンチ内での無菌培養作業
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- タブ4: アニマルケア（初期非表示） -->
+        <div id="tab-animal" class="tab-content hidden lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+          <div class="lg:col-span-6 space-y-6">
+            <div class="inline-flex items-center space-x-2 bg-rose-50 text-rose-700 px-3 py-1 rounded-full text-xs font-bold">
+              <i data-lucide="dog" class="w-4 h-4"></i>
+              <span>畜産動物 ✕ 愛玩動物 ✕ アニマルケア</span>
+            </div>
+            <h3 class="text-2xl sm:text-3xl font-black text-slate-900">アニマルケアコース</h3>
+            <p class="text-rose-600 font-bold text-lg">「命のぬくもりに触れ、命の尊さを学ぶ。」</p>
+            <p class="text-slate-600 leading-relaxed">
+              牛や豚などの産業動物から、犬・ヤギなどの身近な小動物まで幅広くお世話・管理を学びます。動物の心理や健康を学びながら、おいしい乳製品の加工技術、人と動物の豊かな生活を築くためのリハビリやセラピーについてもアプローチします。
+            </p>
+            
+            <div class="border-t border-slate-100 pt-6">
+              <h4 class="font-bold text-slate-900 mb-3 flex items-center">
+                <i data-lucide="award" class="w-5 h-5 mr-2 text-rose-600"></i>
+                取得を目指す主な資格
+              </h4>
+              <div class="flex flex-wrap gap-2">
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">愛玩動物飼育管理士（2級）</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">家畜人工授精師（国家資格）</span>
+                <span class="bg-slate-100 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-medium">愛玩動物看護師（基礎資格）</span>
+              </div>
+            </div>
+          </div>
+          <div class="lg:col-span-6 mt-8 lg:mt-0">
+            <div class="relative rounded-2xl overflow-hidden shadow-lg h-64 sm:h-96">
+              <img src="https://images.unsplash.com/photo-1516467508483-a7212febe31a?auto=format&fit=crop&q=80&w=600" alt="アニマルケア" class="w-full h-full object-cover">
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent"></div>
+              <span class="absolute bottom-4 left-4 text-white text-sm font-bold flex items-center">
+                <i data-lucide="play" class="w-4 h-4 mr-1"></i> 実習：ヤギやヒツジのふれあいケアと健康観察
+              </span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. 学校生活・キャンパスライフ (Campus Life) -->
+  <section id="life" class="py-20 sm:py-32 bg-white relative overflow-hidden">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-emerald-600 font-bold tracking-widest text-sm uppercase block mb-3">CAMPUS LIFE</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-slate-900">
+          とびきりユニークで、最高のアオハルを！
+        </h2>
+        <p class="text-slate-500 mt-4">ここでしか味わえない体験。仲間と一緒に汗を流し、笑顔が絶えない3年間が待っています。</p>
+      </div>
+
+      <!-- メインイベント紹介 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
+        <div class="bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 transition hover:shadow-lg">
+          <div class="h-44 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1500937386664-56d1dfef3854?auto=format&fit=crop&q=80&w=300" alt="春" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 bg-emerald-600 text-white text-xs font-bold px-2.5 py-1 rounded-md">4月 - 6月</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-black text-slate-900 text-lg mb-2">田植え実習＆新入生BBQ</h3>
+            <p class="text-slate-600 text-sm">
+              泥だらけになりながら楽しむ名物の田植え実習！みんなで一から植えた後は、実習地で美味しいBBQを。一気にクラスの仲が深まります！
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 transition hover:shadow-lg">
+          <div class="h-44 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1505230833345-63579af5059a?auto=format&fit=crop&q=80&w=300" alt="夏" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 bg-sky-600 text-white text-xs font-bold px-2.5 py-1 rounded-md">7月 - 8月</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-black text-slate-900 text-lg mb-2">夏合宿＆オープンサマー</h3>
+            <p class="text-slate-600 text-sm">
+              実験や研究をチームで行い絆を深める合宿を開催。中学生を笑顔で迎える体験授業ボランティアスタッフとしても大活躍！
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 transition hover:shadow-lg">
+          <div class="h-44 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1532622080065-1565487c7bc5?auto=format&fit=crop&q=80&w=300" alt="秋" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 bg-amber-600 text-white text-xs font-bold px-2.5 py-1 rounded-md">11月</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-black text-slate-900 text-lg mb-2">大盛況の「秋の大収穫祭」</h3>
+            <p class="text-slate-600 text-sm">
+              地域の方が朝から数時間並ぶ最大のビッグイベント。自分たちの作った野菜や果物、焼き立てパンが完売した時の喜びは格別です！
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-slate-50 rounded-2xl overflow-hidden border border-slate-100 transition hover:shadow-lg">
+          <div class="h-44 overflow-hidden relative">
+            <img src="https://images.unsplash.com/photo-1544928147-79a2df17688e?auto=format&fit=crop&q=80&w=300" alt="冬" class="w-full h-full object-cover">
+            <span class="absolute top-3 left-3 bg-slate-600 text-white text-xs font-bold px-2.5 py-1 rounded-md">1月 - 2月</span>
+          </div>
+          <div class="p-5">
+            <h3 class="font-black text-slate-900 text-lg mb-2">卒業研究発表会</h3>
+            <p class="text-slate-600 text-sm">
+              「IT×地域課題解決」「おいしい低GIスイーツ開発」など、3年間追及した課題研究を発表。大人顔負けのプレゼン力を披露します！
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- 生徒の1日のタイムスケジュール -->
+      <div class="bg-slate-50 rounded-3xl p-6 sm:p-10 border border-slate-100 lg:grid lg:grid-cols-12 lg:gap-12 items-center">
+        <div class="lg:col-span-5 space-y-4">
+          <span class="text-xs font-bold text-emerald-600 tracking-wider bg-emerald-50 px-2.5 py-1 rounded-md">STUDENT SCHEDULE</span>
+          <h3 class="text-2xl font-black text-slate-900">ある日の実習日のスケジュール</h3>
+          <p class="text-slate-500 text-sm leading-relaxed">
+            朝の畑の様子確認や動物たちへのおはようの挨拶。大人気のお昼休みの購買、そして一番楽しみな午後からの本格的な体験実習など、一日中ワクワクが詰まっています！
+          </p>
+          <div class="flex items-center space-x-3 p-4 bg-white rounded-xl shadow-sm border border-slate-200/50">
+            <i data-lucide="info" class="w-8 h-8 text-emerald-500 shrink-0"></i>
+            <p class="text-xs text-slate-600 leading-relaxed">普通科と同じように英語や数学もしっかり学びます。さらに専門科目があるので受験での総合推薦枠にも有利に働きます！</p>
+          </div>
+        </div>
+        <div class="lg:col-span-7 mt-8 lg:mt-0 space-y-4">
+          <div class="flex items-center">
+            <div class="w-20 text-xs font-bold text-emerald-600 text-right pr-4 shrink-0">08:40</div>
+            <div class="flex-1 bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
+              <span class="text-sm font-bold text-slate-800">朝のホームルーム</span>
+              <span class="text-xs text-slate-400">一日の予定を共有</span>
+            </div>
+          </div>
+          <div class="flex items-center">
+            <div class="w-20 text-xs font-bold text-emerald-600 text-right pr-4 shrink-0">08:50〜</div>
+            <div class="flex-1 bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
+              <span class="text-sm font-bold text-slate-800">午前：一般科目（英語・国語・数学等）</span>
+              <span class="text-xs text-slate-400">高校生としての基礎学力UP</span>
+            </div>
+          </div>
+          <div class="flex items-center">
+            <div class="w-20 text-xs font-bold text-emerald-600 text-right pr-4 shrink-0">12:40〜</div>
+            <div class="flex-1 bg-emerald-50 p-3 rounded-xl border border-emerald-100/50 flex items-center justify-between shadow-sm">
+              <span class="text-sm font-bold text-emerald-800">お昼休み：大人気の自家製焼き立てパン販売</span>
+              <span class="text-xs text-emerald-600">食堂も賑わいます</span>
+            </div>
+          </div>
+          <div class="flex items-center">
+            <div class="w-20 text-xs font-bold text-emerald-600 text-right pr-4 shrink-0">13:30〜</div>
+            <div class="flex-1 bg-gradient-to-r from-emerald-600 to-teal-600 p-3.5 rounded-xl text-white flex items-center justify-between shadow-md">
+              <span class="text-sm font-bold">午後：ドローン×圃場データ解析実習</span>
+              <span class="text-xs opacity-80">タブレットでデータ入力</span>
+            </div>
+          </div>
+          <div class="flex items-center">
+            <div class="w-20 text-xs font-bold text-emerald-600 text-right pr-4 shrink-0">15:50〜</div>
+            <div class="flex-1 bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between shadow-sm">
+              <span class="text-sm font-bold text-slate-800">放課後：プロジェクト研究、部活動</span>
+              <span class="text-xs text-slate-400">農業クラブ活動も盛ん！</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 6. 進路・実績 (Career & Statistics) -->
+  <section id="career" class="py-20 sm:py-32 bg-slate-900 text-white relative">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-16">
+        <span class="text-emerald-400 font-bold tracking-widest text-sm uppercase block mb-3">CAREER</span>
+        <h2 class="text-3xl sm:text-4xl font-black">
+          「実学」を学んだキミは、社会から引っ張りだこ。
+        </h2>
+        <p class="text-slate-400 mt-4">驚くほど有利な進路選択。就職はもちろん、国公立・私立大学への進学に強いのも特徴です。</p>
+      </div>
+
+      <!-- 進路実績インフォグラフィック -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 mb-16 text-center">
+        <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-700/50">
+          <p class="text-slate-400 text-sm font-bold mb-2">就職希望者の就職率</p>
+          <div class="text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 mb-2">100%</div>
+          <p class="text-xs text-slate-400 leading-relaxed">長年の信頼関係により、地域・大手企業より毎年多くの独占求人をいただいています。</p>
+        </div>
+        <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-700/50">
+          <p class="text-slate-400 text-sm font-bold mb-2">平均求人倍率</p>
+          <div class="text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 mb-2">25.4倍</div>
+          <p class="text-xs text-slate-400 leading-relaxed">一人の生徒に対して選択肢が非常に豊富。自分の適性にマッチした優良企業を徹底して選べます。</p>
+        </div>
+        <div class="bg-slate-800/50 p-8 rounded-2xl border border-slate-700/50">
+          <p class="text-slate-400 text-sm font-bold mb-2">大学・短大等進学率</p>
+          <div class="text-5xl sm:text-6xl font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300 mb-2">約50%</div>
+          <p class="text-xs text-slate-400 leading-relaxed">「総合型選抜」や「学校推薦型選抜（旧AO）」において、高校時代の専門的な研究活動が高く評価されます。</p>
+        </div>
+      </div>
+
+      <!-- 進路先一覧 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-16">
+        <div class="bg-slate-800/30 p-6 sm:p-8 rounded-2xl border border-slate-700/30">
+          <h3 class="text-lg font-black text-emerald-400 mb-4 flex items-center">
+            <i data-lucide="building-2" class="w-5 h-5 mr-2"></i> 主な就職実績
+          </h3>
+          <ul class="space-y-2 text-slate-300 text-sm">
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-emerald-500"></i> 大手食品メーカー各種（製造、品質管理職）</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-emerald-500"></i> 全国各種JA（農業協同組合）</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-emerald-500"></i> 自治体公務員（農業土木職・一般事務職等）</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-emerald-500"></i> 先進的アグリベンチャー（ドローンオペレーター）</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-emerald-500"></i> 有名リゾートホテル・飲食チェーン本部など</li>
+          </ul>
+        </div>
+        <div class="bg-slate-800/30 p-6 sm:p-8 rounded-2xl border border-slate-700/30">
+          <h3 class="text-lg font-black text-sky-400 mb-4 flex items-center">
+            <i data-lucide="graduation-cap" class="w-5 h-5 mr-2"></i> 主な大学・進学実績
+          </h3>
+          <ul class="space-y-2 text-slate-300 text-sm">
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-sky-500"></i> 国公立大学 農学部（推薦枠・一般枠）</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-sky-500"></i> 私立大学 農学部・生物生命理工学部</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-sky-500"></i> 獣医生命科学大学・獣医学部</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-sky-500"></i> 食品栄養・パティシエ専門学校</li>
+            <li class="flex items-center"><i data-lucide="check" class="w-4 h-4 mr-2 text-sky-500"></i> IT・システムエンジニア系専門学校など</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- OB・OGの声 -->
+      <div class="bg-slate-800/40 p-6 sm:p-8 rounded-3xl border border-slate-700/50">
+        <h3 class="text-lg font-black text-slate-200 mb-6 text-center">OB・OGインタビューの声</h3>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div class="space-y-3 bg-slate-900/40 p-5 rounded-2xl">
+            <div class="flex items-center space-x-3">
+              <div class="bg-emerald-500 text-slate-900 p-1.5 rounded-full"><i data-lucide="user" class="w-5 h-5"></i></div>
+              <div>
+                <span class="font-bold block text-sm">M.Kさん (食品メーカー商品開発)</span>
+                <span class="text-xs text-slate-400">フードクリエイトコース 2023年卒</span>
+              </div>
+            </div>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              「高校時代に、実際に地域の農家さんとコラボして作ったジャムが、今の開発企画の仕事のベースになっています。面接官の人も、私の『高校生にしてHACCPの基礎を知っていること』にとても驚いてくれ、大きな自信になりました！」
+            </p>
+          </div>
+          <div class="space-y-3 bg-slate-900/40 p-5 rounded-2xl">
+            <div class="flex items-center space-x-3">
+              <div class="bg-sky-500 text-slate-900 p-1.5 rounded-full"><i data-lucide="user" class="w-5 h-5"></i></div>
+              <div>
+                <span class="font-bold block text-sm">T.Sさん (国立大学 農学部在学)</span>
+                <span class="text-xs text-slate-400">バイオサイエンスコース 2024年卒</span>
+              </div>
+            </div>
+            <p class="text-slate-300 text-sm leading-relaxed">
+              「普通高校だったら、受験用のペーパーテスト対策だけだったと思いますが、本校で取り組んだ『お花の組織培養』の実験実績をもとに総合推薦入試で志望校に一発合格できました。現在大学での実験レベルも高校とかなり近いため、すぐに馴染めました。」
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 7. よくある質問 (FAQ) -->
+  <section id="faq" class="py-20 sm:py-32 bg-white">
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center mb-16">
+        <span class="text-emerald-600 font-bold tracking-widest text-sm uppercase block mb-3">FAQ</span>
+        <h2 class="text-3xl sm:text-4xl font-black text-slate-900">よくあるご質問</h2>
+        <p class="text-slate-500 mt-4">中学生や保護者の方からよくいただく疑問に、直球でお答えします。</p>
+      </div>
+
+      <!-- アコーディオン -->
+      <div class="space-y-4">
+        
+        <!-- Q1 -->
+        <div class="border border-slate-200 rounded-2xl overflow-hidden transition-all duration-200 bg-slate-50">
+          <button onclick="toggleFaq('faq-1')" class="w-full flex items-center justify-between p-5 text-left font-bold text-slate-800 hover:text-emerald-600 transition">
+            <span class="flex items-center">
+              <span class="bg-emerald-100 text-emerald-800 rounded-lg px-2 py-1 text-xs font-black mr-3">Q1</span>
+              全く農業の経験がありませんが、授業についていけますか？
+            </span>
+            <i data-lucide="chevron-down" id="faq-icon-1" class="w-5 h-5 text-slate-400 transition-transform duration-300"></i>
+          </button>
+          <div id="faq-answer-1" class="hidden border-t border-slate-200 bg-white p-5 text-sm text-slate-600 leading-relaxed">
+            ご安心ください！入学者の約9割が非農家出身の、土をほとんど触ったことがない生徒たちです。道具の基本的な使い方から、植物・動物の基本生理、最新ドローンの扱い方まで、親身になって教えますので未経験者でも十分に追いつくことが可能です。
+          </div>
+        </div>
+
+        <!-- Q2 -->
+        <div class="border border-slate-200 rounded-2xl overflow-hidden transition-all duration-200 bg-slate-50">
+          <button onclick="toggleFaq('faq-2')" class="w-full flex items-center justify-between p-5 text-left font-bold text-slate-800 hover:text-emerald-600 transition">
+            <span class="flex items-center">
+              <span class="bg-emerald-100 text-emerald-800 rounded-lg px-2 py-1 text-xs font-black mr-3">Q2</span>
+              校則や髪型、スマートフォンの持ち込みについて教えてください。
+            </span>
+            <i data-lucide="chevron-down" id="faq-icon-2" class="w-5 h-5 text-slate-400 transition-transform duration-300"></i>
+          </button>
+          <div id="faq-answer-2" class="hidden border-t border-slate-200 bg-white p-5 text-sm text-slate-600 leading-relaxed">
+            一般的な公立（私立）高校と同等の規律・基準です。ただし、実習時には安全管理（トラクター等の機械操作や、刃物の使用）や食品加工時の徹底的な衛生管理のため、爪を短く切る、髪を帽子の中へ完全にまとめるなどの必要な規則が決められています。放課後の時間や、通学時はのびのびと過ごしていただけます。
+          </div>
+        </div>
+
+        <!-- Q3 -->
+        <div class="border border-slate-200 rounded-2xl overflow-hidden transition-all duration-200 bg-slate-50">
+          <button onclick="toggleFaq('faq-3')" class="w-full flex items-center justify-between p-5 text-left font-bold text-slate-800 hover:text-emerald-600 transition">
+            <span class="flex items-center">
+              <span class="bg-emerald-100 text-emerald-800 rounded-lg px-2 py-1 text-xs font-black mr-3">Q3</span>
+              女子生徒はどれくらいいますか？
+            </span>
+            <i data-lucide="chevron-down" id="faq-icon-3" class="w-5 h-5 text-slate-400 transition-transform duration-300"></i>
+          </button>
+          <div id="faq-answer-3" class="hidden border-t border-slate-200 bg-white p-5 text-sm text-slate-600 leading-relaxed">
+            実は、本校の生徒の約45％が女子生徒です。特にフードクリエイトコース（食品製造）やバイオサイエンスコース、アニマルケアコースなど、女子の割合が半数を超えるクラスも多くあります。部活動でも、フラワー装飾や農業クラブ全国大会など、男女問わずのびのびと活躍できる環境が整っています。
+          </div>
+        </div>
+
+        <!-- Q4 -->
+        <div class="border border-slate-200 rounded-2xl overflow-hidden transition-all duration-200 bg-slate-50">
+          <button onclick="toggleFaq('faq-4')" class="w-full flex items-center justify-between p-5 text-left font-bold text-slate-800 hover:text-emerald-600 transition">
+            <span class="flex items-center">
+              <span class="bg-emerald-100 text-emerald-800 rounded-lg px-2 py-1 text-xs font-black mr-3">Q4</span>
+              実習費など、学費は一般の高校より高いですか？
+            </span>
+            <i data-lucide="chevron-down" id="faq-icon-4" class="w-5 h-5 text-slate-400 transition-transform duration-300"></i>
+          </button>
+          <div id="faq-answer-4" class="hidden border-t border-slate-200 bg-white p-5 text-sm text-slate-600 leading-relaxed">
+            国の「高等学校等就学支援金制度」などが適用されるため、授業料の負担は一般的な普通科高校と変わりありません。実習時に着用する頑丈な作業服、長靴、専門教科用教科書等の購入が1年生の初期に一部必要ですが、それ以外に高額な費用が随時発生することはありません。各種自治体の奨学金もご利用いただけます。
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- 8. オープンキャンパス案内 ＆ コンタクト（CTA） -->
+  <section id="cta" class="py-20 bg-gradient-to-tr from-emerald-900 via-teal-950 to-slate-900 text-white relative overflow-hidden">
+    <!-- 装飾サークル -->
+    <div class="absolute -top-10 -right-10 w-72 h-72 bg-emerald-500/10 rounded-full blur-2xl"></div>
+    <div class="absolute -bottom-10 -left-10 w-72 h-72 bg-sky-500/10 rounded-full blur-2xl"></div>
+
+    <div class="relative max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div class="text-center max-w-3xl mx-auto mb-12">
+        <span class="text-emerald-400 font-bold tracking-widest text-sm uppercase block mb-3">OPEN CAMPUS & DOCUMENTS</span>
+        <h2 class="text-3xl sm:text-4xl font-black mb-4">
+          百聞は一見にしかず！<br class="sm:hidden">まずはワクワクを体験しよう
+        </h2>
+        <p class="text-slate-300">
+          「ちょっと楽しそうかも」その直感が、未来を開きます。<br>
+          保護者の方のご参加も大歓迎です。
+        </p>
+      </div>
+
+      <!-- 日程・プログラム選択 -->
+      <div class="bg-white/10 backdrop-blur-md rounded-3xl p-6 sm:p-10 border border-white/10 grid grid-cols-1 lg:grid-cols-12 gap-10 items-stretch">
+        
+        <!-- 左側：イベントスケジュール -->
+        <div class="lg:col-span-5 space-y-6 flex flex-col justify-between">
+          <div class="space-y-4">
+            <h3 class="text-xl font-bold text-emerald-300 flex items-center">
+              <i data-lucide="calendar" class="w-5 h-5 mr-2"></i>
+              体験入学 開催プログラム
             </h3>
-            <ul class="rule-list">
-                <li>下部の3つのブロックをドラッグ＆ドロップして、盤面に配置します。</li>
-                <li><strong>タップ操作:</strong> ブロックを1タップ選択し、盤面の目標マス（中心）をタップしても配置できます。</li>
-                <li>縦または横の1列（10マス）を完全に埋めると消滅し、スコアを獲得できます。</li>
-                <li>連続して消すと<strong>コンボボーナス</strong>が入り、獲得スコアが何倍にも跳ね上がります！</li>
-                <li>盤面上のどこにも手持ちのブロックが配置できなくなったらゲームオーバーです。</li>
-            </ul>
-            <button id="btn-close-info" class="btn-close-info">ゲームに戻る</button>
+            <div class="space-y-3">
+              <div class="p-3.5 bg-white/5 rounded-xl border border-white/10">
+                <span class="text-emerald-400 font-bold text-xs">7/25 (土)・8/8 (土)</span>
+                <p class="text-sm font-semibold mt-1">「最新ドローンの操縦＆自動飛行体験」</p>
+                <p class="text-xs text-slate-300">実習農場をドローンで上空から観測してみよう！</p>
+              </div>
+              <div class="p-3.5 bg-white/5 rounded-xl border border-white/10">
+                <span class="text-emerald-400 font-bold text-xs">8/1 (土)・8/22 (土)</span>
+                <p class="text-sm font-semibold mt-1">「焼きたてサクサク！メロンパン作り」</p>
+                <p class="text-xs text-slate-300">学校の農家小麦を使った大人気製パン実習を再現！</p>
+              </div>
+              <div class="p-3.5 bg-white/5 rounded-xl border border-white/10">
+                <span class="text-emerald-400 font-bold text-xs">8/15 (土)</span>
+                <p class="text-sm font-semibold mt-1">「アニマルふれあい＆酪農加工入門」</p>
+                <p class="text-xs text-slate-300">ヤギたちのケア体験＆特製プリンの試食付き！</p>
+              </div>
+            </div>
+          </div>
+          <div class="pt-4 border-t border-white/10 text-xs text-slate-300">
+            ※ 上記以外の日程での学校見学も随時受け付けています。詳しくはお問い合わせください。
+          </div>
         </div>
+
+        <!-- 右側：応募フォーム -->
+        <div class="lg:col-span-7 bg-white text-slate-800 rounded-2xl p-6 sm:p-8">
+          <h4 class="text-lg font-black text-slate-900 mb-6 flex items-center">
+            <i data-lucide="edit-3" class="w-5 h-5 mr-2 text-emerald-600"></i>
+            簡単3分お申し込みフォーム
+          </h4>
+          
+          <form id="oc-form" onsubmit="handleFormSubmit(event)" class="space-y-4">
+            <div>
+              <label class="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">お申し込み目的 <span class="text-rose-500">*</span></label>
+              <div class="grid grid-cols-2 gap-3">
+                <label class="flex items-center justify-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 border-emerald-500 bg-emerald-50 text-emerald-800 font-bold" id="label-type-oc">
+                  <input type="radio" name="apply_type" value="oc" checked class="hidden" onchange="switchFormType('oc')">
+                  体験入学に申込む
+                </label>
+                <label class="flex items-center justify-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 text-slate-600 font-semibold" id="label-type-doc">
+                  <input type="radio" name="apply_type" value="doc" class="hidden" onchange="switchFormType('doc')">
+                  資料・パンフ請求
+                </label>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">お名前（ふりがな） <span class="text-rose-500">*</span></label>
+                <input type="text" required placeholder="のうぎょう たろう" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-600 mb-1">現在の学年 <span class="text-rose-500">*</span></label>
+                <select required class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                  <option value="">選択してください</option>
+                  <option value="jh3">中学3年生（受験生）</option>
+                  <option value="jh2">中学2年生</option>
+                  <option value="jh1">中学1年生</option>
+                  <option value="parent">保護者</option>
+                  <option value="other">その他</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-bold text-slate-600 mb-1">メールアドレス <span class="text-rose-500">*</span></label>
+              <input type="email" required placeholder="example@email.com" class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+            </div>
+
+            <!-- 体験希望日のセレクト（体験入学の場合のみ活性化。切り替え可能） -->
+            <div id="form-date-container">
+              <label class="block text-xs font-bold text-slate-600 mb-1">参加を希望する日程 <span class="text-rose-500">*</span></label>
+              <select id="select-date" required class="w-full px-4 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="">日程とプログラムを選択</option>
+                <option value="0725">7月25日 (土) - ドローン操縦体験</option>
+                <option value="0801">8月01日 (土) - サクサクメロンパン体験</option>
+                <option value="0808">8月08日 (土) - ドローン操縦体験</option>
+                <option value="0815">8月15日 (土) - アニマルふれあい体験</option>
+                <option value="0822">8月22日 (土) - サクサクメロンパン体験</option>
+              </select>
+            </div>
+
+            <!-- カスタムトースト風完了メッセージエリア -->
+            <div id="form-success-alert" class="hidden p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl space-y-2">
+              <div class="flex items-center space-x-2">
+                <i data-lucide="check-circle" class="w-5 h-5 text-emerald-600"></i>
+                <span class="font-bold">お申し込みありがとうございます！</span>
+              </div>
+              <p class="text-xs">入力されたメールアドレス宛に、24時間以内に集合場所と持ち物の詳細情報をお送りいたします。当日、お会いできるのを楽しみにしております！</p>
+            </div>
+
+            <button type="submit" id="btn-submit" class="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl shadow-md transition flex items-center justify-center space-x-2">
+              <i data-lucide="send" class="w-4 h-4"></i>
+              <span id="btn-submit-text">オープンキャンパスの予約を確定する</span>
+            </button>
+          </form>
+
+        </div>
+      </div>
     </div>
-
-    <!-- ドラッグ用のビジュアルProxy要素 -->
-    <div id="drag-proxy" style="display:none;"></div>
-
-    <div id="custom-alert"></div>
-
-    <script>
-        const GRID_SIZE = 10;
-
-        // ブロックの全バリエーション形状とカラー情報
-        const BLOCK_TEMPLATES = [
-            { shape: [[1]], color: '#ef4444', name: 'red' }, // 1x1
-            { shape: [[1, 1]], color: '#f97316', name: 'orange' }, // 1x2
-            { shape: [[1, 1, 1]], color: '#f59e0b', name: 'amber' }, // 1x3
-            { shape: [[1, 1, 1, 1]], color: '#eab308', name: 'yellow' }, // 1x4
-            { shape: [[1, 0], [1, 0], [1, 1]], color: '#84cc16', name: 'lime' }, // L
-            { shape: [[0, 1], [0, 1], [1, 1]], color: '#10b981', name: 'emerald' }, // 逆L
-            { shape: [[1, 1, 1], [1, 0, 0]], color: '#06b6d4', name: 'cyan' },
-            { shape: [[1, 1, 1], [0, 0, 1]], color: '#3b82f6', name: 'blue' },
-            { shape: [[1, 1, 1], [0, 1, 0]], color: '#6366f1', name: 'indigo' }, // T
-            { shape: [[1, 1, 0], [0, 1, 1]], color: '#8b5cf6', name: 'violet' }, // Z
-            { shape: [[0, 1, 1], [1, 1, 0]], color: '#a855f7', name: 'purple' }, // 逆Z
-            { shape: [[1, 1], [1, 1]], color: '#ec4899', name: 'pink' } // 2x2
-        ];
-
-        let gridState = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
-        let score = 0;
-        let highScore = localStorage.getItem('block_blast_high') || 0;
-        let currentCombo = 0;
-        let maxComboThisGame = 0;
-        let holderBlocks = [null, null, null];
-
-        // 操作状態追跡
-        let activePointerId = null;
-        let selectedBlockIndex = null;
-        let isPointerDragging = false;
-        let pointerStartOffset = { x: 0, y: 0 };
-
-        // DOMキャッシュオブジェクト
-        let els = {};
-
-        function cacheElements() {
-            try {
-                els.gameGrid = document.getElementById('game-grid');
-                els.holders = [
-                    document.getElementById('holder-0'),
-                    document.getElementById('holder-1'),
-                    document.getElementById('holder-2')
-                ];
-                els.currentScore = document.getElementById('current-score');
-                els.highScore = document.getElementById('high-score');
-                els.comboCount = document.getElementById('combo-count');
-                els.lblCombo = document.getElementById('lbl-combo');
-                els.toastContainer = document.getElementById('toast-container');
-                els.gameoverModal = document.getElementById('gameover-modal');
-                els.infoModal = document.getElementById('info-modal');
-                els.finalScore = document.getElementById('final-score');
-                els.finalCombo = document.getElementById('final-combo');
-                els.btnRestart = document.getElementById('btn-restart');
-                els.btnInfo = document.getElementById('btn-info');
-                els.btnCloseInfo = document.getElementById('btn-close-info');
-                els.dragProxy = document.getElementById('drag-proxy');
-                els.guideText = document.getElementById('guide-text');
-                els.guideBox = document.getElementById('guide-box-el');
-                els.customAlert = document.getElementById('custom-alert');
-                return true;
-            } catch (e) {
-                console.error("DOM Cache Error:", e);
-                return false;
-            }
-        }
-
-        function initGame() {
-            try {
-                score = 0;
-                currentCombo = 0;
-                maxComboThisGame = 0;
-                gridState = Array(GRID_SIZE).fill(null).map(() => Array(GRID_SIZE).fill(null));
-                
-                if (els.highScore) els.highScore.textContent = highScore;
-                updateScoreUI();
-                
-                createGridUI();
-                
-                // 初回のみ少し遅延をいれてセルサイズが確定してからホルダーを安全に描画
-                setTimeout(() => {
-                    generateHolderBlocks();
-                }, 50);
-                
-                closeModal(els.gameoverModal);
-            } catch (e) {
-                console.error("Game Init Error:", e);
-            }
-        }
-
-        function createGridUI() {
-            if (!els.gameGrid) return;
-            els.gameGrid.innerHTML = '';
-            for (let r = 0; r < GRID_SIZE; r++) {
-                for (let c = 0; c < GRID_SIZE; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'board-cell';
-                    cell.dataset.row = r;
-                    cell.dataset.col = c;
-                    els.gameGrid.appendChild(cell);
-                }
-            }
-        }
-
-        function updateScoreUI() {
-            if (els.currentScore) els.currentScore.textContent = score;
-            if (score > highScore) {
-                highScore = score;
-                localStorage.setItem('block_blast_high', highScore);
-                if (els.highScore) els.highScore.textContent = highScore;
-            }
-            if (els.comboCount) els.comboCount.textContent = `x${currentCombo}`;
-            
-            if (currentCombo > 0) {
-                els.lblCombo?.classList.add('combo-active');
-            } else {
-                els.lblCombo?.classList.remove('combo-active');
-            }
-        }
-
-        function generateHolderBlocks() {
-            try {
-                holderBlocks = [null, null, null];
-                for (let i = 0; i < 3; i++) {
-                    const randomTemplate = BLOCK_TEMPLATES[Math.floor(Math.random() * BLOCK_TEMPLATES.length)];
-                    holderBlocks[i] = {
-                        shape: randomTemplate.shape.map(row => [...row]),
-                        color: randomTemplate.color,
-                        name: randomTemplate.name
-                    };
-                    renderHolderBlock(i);
-                }
-                checkGameOver();
-            } catch(e) {
-                console.error("Generate Block Error:", e);
-            }
-        }
-
-        function renderHolderBlock(index) {
-            const holder = els.holders[index];
-            if (!holder) return;
-            holder.innerHTML = '';
-            
-            const block = holderBlocks[index];
-            if (!block) {
-                holder.style.opacity = '0.15';
-                holder.style.cursor = 'default';
-                return;
-            }
-
-            holder.style.opacity = '1';
-            holder.style.cursor = 'grab';
-
-            const shape = block.shape;
-            const rows = shape.length;
-            const cols = shape[0].length;
-
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'block-shape-grid';
-            gridContainer.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
-            gridContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-            
-            // 盤面の実際の1セルサイズをリアルタイムに測定
-            const firstCell = els.gameGrid ? els.gameGrid.children[0] : null;
-            const baseCellSize = firstCell ? firstCell.clientWidth : 34;
-            
-            // 盤面のセル幅の85%に統一（手札ブロック全体のセル幅がマス目とほぼ同じ＝直感的でわかりやすい）
-            const holderCellSize = Math.max(14, baseCellSize * 0.85);
-
-            // セル個数に応じた物理幅・高さを強制指定（引き伸ばしバグの完全解消）
-            gridContainer.style.width = `${cols * holderCellSize + (cols - 1) * 2}px`;
-            gridContainer.style.height = `${rows * holderCellSize + (rows - 1) * 2}px`;
-
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'preview-cell';
-                    cell.style.width = `${holderCellSize}px`;
-                    cell.style.height = `${holderCellSize}px`;
-                    if (shape[r][c] === 1) {
-                        cell.classList.add('filled');
-                        cell.style.backgroundColor = block.color;
-                    } else {
-                        cell.style.backgroundColor = 'transparent';
-                    }
-                    gridContainer.appendChild(cell);
-                }
-            }
-
-            holder.appendChild(gridContainer);
-        }
-
-        function setupPointerDragSystem() {
-            els.holders.forEach((holder, idx) => {
-                if (!holder) return;
-
-                // Pointer Down
-                holder.addEventListener('pointerdown', (e) => {
-                    try {
-                        if (!holderBlocks[idx]) return;
-                        e.preventDefault();
-                        holder.releasePointerCapture(e.pointerId);
-
-                        selectedBlockIndex = idx;
-                        isPointerDragging = false;
-                        activePointerId = e.pointerId;
-
-                        highlightSelectedHolder(idx);
-                        prepareDragProxy(idx, e.clientX, e.clientY);
-                    } catch(err) {
-                        console.error("PointerDown error:", err);
-                    }
-                });
-            });
-
-            // Pointer Move
-            window.addEventListener('pointermove', (e) => {
-                try {
-                    if (selectedBlockIndex === null || activePointerId !== e.pointerId) return;
-                    e.preventDefault();
-
-                    if (!isPointerDragging) {
-                        isPointerDragging = true;
-                        if (els.dragProxy) els.dragProxy.style.display = 'block';
-                    }
-
-                    updateDragProxyPosition(e.clientX, e.clientY);
-                    handleHoverPreview(e.clientX, e.clientY);
-                } catch(err) {
-                    console.error("PointerMove error:", err);
-                }
-            });
-
-            // Pointer Up
-            window.addEventListener('pointerup', (e) => {
-                try {
-                    if (selectedBlockIndex === null || activePointerId !== e.pointerId) return;
-                    e.preventDefault();
-
-                    const wasDragging = isPointerDragging;
-                    
-                    if (els.dragProxy) els.dragProxy.style.display = 'none';
-                    activePointerId = null;
-                    isPointerDragging = false;
-
-                    if (wasDragging) {
-                        attemptDropAtCurrentHover(e.clientX, e.clientY);
-                    } else {
-                        if (els.guideText) {
-                            els.guideText.innerHTML = `👉 <span style="color:var(--neon-green); font-weight:bold;">配置したい盤面のマス（中心）をタップ！</span>`;
-                        }
-                    }
-                } catch(err) {
-                    console.error("PointerUp error:", err);
-                }
-            });
-
-            // 盤面をタップ（代替操作用・スナップ機能搭載）
-            if (els.gameGrid) {
-                els.gameGrid.addEventListener('click', (e) => {
-                    try {
-                        if (selectedBlockIndex === null || isPointerDragging) return;
-                        const cell = e.target.closest('.board-cell');
-                        if (!cell) return;
-
-                        const r = parseInt(cell.dataset.row);
-                        const c = parseInt(cell.dataset.col);
-                        
-                        const block = holderBlocks[selectedBlockIndex];
-                        if (!block) return;
-
-                        // 1. まずタップされた位置（中央）をチェック
-                        let startRow = r - Math.floor(block.shape.length / 2);
-                        let startCol = c - Math.floor(block.shape[0].length / 2);
-
-                        if (checkFit(block, startRow, startCol)) {
-                            placeBlock(selectedBlockIndex, startRow, startCol);
-                            clearHolderSelection();
-                            return;
-                        }
-
-                        // 2. 置けない場合、周辺の3x3（半径1マス）エリアを高速サーチしてスマート自動吸着
-                        const candidates = [];
-                        for (let dr = -1; dr <= 1; dr++) {
-                            for (let dc = -1; dc <= 1; dc++) {
-                                if (dr === 0 && dc === 0) continue;
-                                const tr = r + dr - Math.floor(block.shape.length / 2);
-                                const tc = c + dc - Math.floor(block.shape[0].length / 2);
-                                
-                                if (checkFit(block, tr, tc)) {
-                                    // 中心からの距離
-                                    const dist = Math.sqrt(dr * dr + dc * dc);
-                                    candidates.push({ row: tr, col: tc, dist });
-                                }
-                            }
-                        }
-
-                        if (candidates.length > 0) {
-                            // 最も近い合法的配置スペースに自動で引き込まれて設置！
-                            candidates.sort((a, b) => a.dist - b.dist);
-                            placeBlock(selectedBlockIndex, candidates[0].row, candidates[0].col);
-                            clearHolderSelection();
-                        } else {
-                            showCustomAlert("そこには配置できません！別の場所を探してね");
-                        }
-                    } catch(err) {
-                        console.error("Grid cell click error:", err);
-                    }
-                });
-            }
-        }
-
-        function prepareDragProxy(index, clientX, clientY) {
-            const block = holderBlocks[index];
-            if (!block || !els.dragProxy) return;
-
-            els.dragProxy.innerHTML = '';
-            els.dragProxy.className = 'drag-proxy-active';
-            
-            const shape = block.shape;
-            const rows = shape.length;
-            const cols = shape[0].length;
-
-            const gridContainer = document.createElement('div');
-            gridContainer.className = 'block-shape-grid-proxy';
-            gridContainer.style.gridTemplateRows = `repeat(${rows}, 1fr)`;
-            gridContainer.style.gridTemplateColumns = `repeat(${cols}, 1fr)`;
-            
-            const firstCell = els.gameGrid.children[0];
-            const cellSize = firstCell ? firstCell.clientWidth : 24;
-            
-            const containerWidth = cols * cellSize + (cols - 1) * 2.5;
-            const containerHeight = rows * cellSize + (rows - 1) * 2.5;
-            
-            gridContainer.style.width = `${containerWidth}px`;
-            gridContainer.style.height = `${containerHeight}px`;
-
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    const cell = document.createElement('div');
-                    cell.className = 'preview-cell-proxy';
-                    cell.style.width = `${cellSize}px`;
-                    cell.style.height = `${cellSize}px`;
-                    if (shape[r][c] === 1) {
-                        cell.style.backgroundColor = block.color;
-                        cell.style.boxShadow = `
-                            inset 0 1px 0 rgba(255, 255, 255, 0.4), 
-                            inset 0 -1.5px 0 rgba(0, 0, 0, 0.3),
-                            0 1.5px 2px rgba(0,0,0,0.3)
-                        `;
-                    } else {
-                        cell.style.backgroundColor = 'transparent';
-                    }
-                    gridContainer.appendChild(cell);
-                }
-            }
-
-            els.dragProxy.appendChild(gridContainer);
-
-            // 指の真下ではなく、45px上に完全に浮き上がらせて、指でセルが隠れないように設計
-            const liftOffset = 45;
-            pointerStartOffset = {
-                x: containerWidth * 0.5, 
-                y: containerHeight + liftOffset 
-            };
-
-            els.dragProxy.style.left = `${clientX - pointerStartOffset.x}px`;
-            els.dragProxy.style.top = `${clientY - pointerStartOffset.y}px`;
-        }
-
-        function updateDragProxyPosition(clientX, clientY) {
-            if (!els.dragProxy) return;
-            els.dragProxy.style.left = `${clientX - pointerStartOffset.x}px`;
-            els.dragProxy.style.top = `${clientY - pointerStartOffset.y}px`;
-        }
-
-        function handleHoverPreview(clientX, clientY) {
-            if (selectedBlockIndex === null) return;
-            const block = holderBlocks[selectedBlockIndex];
-            if (!block) return;
-
-            const firstCell = els.gameGrid.children[0];
-            const cellSize = firstCell ? firstCell.clientWidth : 24;
-            const rows = block.shape.length;
-            const containerHeight = rows * cellSize + (rows - 1) * 2.5;
-
-            // 表示されているブロック画像の実質的な「中心点」の座標を正確に割り出してスキャン
-            const liftOffset = 45;
-            const checkX = clientX;
-            const checkY = clientY - (containerHeight * 0.5) - liftOffset;
-
-            const element = document.elementFromPoint(checkX, checkY);
-            
-            if (!element) {
-                clearBoardPreview();
-                return;
-            }
-
-            const cell = element.closest('.board-cell');
-            if (cell) {
-                const r = parseInt(cell.dataset.row);
-                const c = parseInt(cell.dataset.col);
-                showPlacementPreview(r, c);
-            } else {
-                clearBoardPreview();
-            }
-        }
-
-        function showPlacementPreview(centerRow, centerCol) {
-            clearBoardPreview();
-            if (selectedBlockIndex === null) return;
-            const block = holderBlocks[selectedBlockIndex];
-            if (!block) return;
-
-            const shape = block.shape;
-            const rows = shape.length;
-            const cols = shape[0].length;
-
-            const startRow = centerRow - Math.floor(rows / 2);
-            const startCol = centerCol - Math.floor(cols / 2);
-
-            const canPlace = checkFit(block, startRow, startCol);
-
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    if (shape[r][c] === 1) {
-                        const tr = startRow + r;
-                        const tc = startCol + c;
-
-                        if (tr >= 0 && tr < GRID_SIZE && tc >= 0 && tc < GRID_SIZE) {
-                            const cellEl = els.gameGrid.children[tr * GRID_SIZE + tc];
-                            if (cellEl) {
-                                if (canPlace) {
-                                    cellEl.style.backgroundColor = block.color;
-                                    cellEl.style.opacity = '0.75'; // 視認性を劇的に向上
-                                    cellEl.style.boxShadow = `inset 0 0 0 2px #fff, 0 0 8px ${block.color}`;
-                                } else {
-                                    cellEl.style.backgroundColor = '#f43f5e';
-                                    cellEl.style.opacity = '0.4';
-                                    cellEl.style.boxShadow = 'inset 0 0 0 2px rgba(244, 63, 94, 0.8)';
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        function clearBoardPreview() {
-            if (!els.gameGrid) return;
-            for (let i = 0; i < els.gameGrid.children.length; i++) {
-                const cellEl = els.gameGrid.children[i];
-                const r = Math.floor(i / GRID_SIZE);
-                const c = i % GRID_SIZE;
-
-                const col = gridState[r][c];
-                cellEl.style.opacity = '1';
-                cellEl.style.boxShadow = '';
-                if (col) {
-                    cellEl.style.backgroundColor = col;
-                } else {
-                    cellEl.style.backgroundColor = 'var(--grid-bg)';
-                }
-            }
-        }
-
-        function checkFit(block, startRow, startCol) {
-            const shape = block.shape;
-            const rows = shape.length;
-            const cols = shape[0].length;
-
-            for (let r = 0; r < rows; r++) {
-                for (let c = 0; c < cols; c++) {
-                    if (shape[r][c] === 1) {
-                        const tr = startRow + r;
-                        const tc = startCol + c;
-
-                        if (tr < 0 || tr >= GRID_SIZE || tc < 0 || tc >= GRID_SIZE) return false;
-                        if (gridState[tr][tc] !== null) return false;
-                    }
-                }
-            }
-            return true;
-        }
-
-        function attemptDropAtCurrentHover(clientX, clientY) {
-            if (selectedBlockIndex === null) return;
-            const block = holderBlocks[selectedBlockIndex];
-            if (!block) return;
-
-            const firstCell = els.gameGrid.children[0];
-            const cellSize = firstCell ? firstCell.clientWidth : 24;
-            const rows = block.shape.length;
-            const containerHeight = rows * cellSize + (rows - 1) * 2.5;
-
-            // 表示中心の正確な座標でドロップ判定
-            const liftOffset = 45;
-            const checkX = clientX;
-            const checkY = clientY - (containerHeight * 0.5) - liftOffset;
-
-            const element = document.elementFromPoint(checkX, checkY);
-            
-            if (!element) {
-                clearHolderSelection();
-                selectedBlockIndex = null;
-                return;
-            }
-
-            const cell = element.closest('.board-cell');
-            if (cell) {
-                const r = parseInt(cell.dataset.row);
-                const c = parseInt(cell.dataset.col);
-                
-                const startRow = r - Math.floor(block.shape.length / 2);
-                const startCol = c - Math.floor(block.shape[0].length / 2);
-
-                if (checkFit(block, startRow, startCol)) {
-                    placeBlock(selectedBlockIndex, startRow, startCol);
-                    clearHolderSelection();
-                    selectedBlockIndex = null;
-                } else {
-                    clearHolderSelection();
-                    selectedBlockIndex = null;
-                }
-            } else {
-                clearHolderSelection();
-                selectedBlockIndex = null;
-            }
-        }
-
-        function placeBlock(index, startRow, startCol) {
-            const block = holderBlocks[index];
-            const shape = block.shape;
-            let cellsPlaced = 0;
-
-            for (let r = 0; r < shape.length; r++) {
-                for (let c = 0; c < shape[0].length; c++) {
-                    if (shape[r][c] === 1) {
-                        const tr = startRow + r;
-                        const tc = startCol + c;
-                        gridState[tr][tc] = block.color;
-                        cellsPlaced++;
-                    }
-                }
-            }
-
-            score += cellsPlaced;
-            updateScoreUI();
-
-            holderBlocks[index] = null;
-            renderHolderBlock(index);
-
-            drawBoardGrid();
-            checkLineClears();
-
-            if (holderBlocks.every(b => b === null)) {
-                generateHolderBlocks();
-            } else {
-                checkGameOver();
-            }
-        }
-
-        function drawBoardGrid() {
-            if (!els.gameGrid) return;
-            for (let r = 0; r < GRID_SIZE; r++) {
-                for (let c = 0; c < GRID_SIZE; c++) {
-                    const cellEl = els.gameGrid.children[r * GRID_SIZE + c];
-                    const col = gridState[r][c];
-                    
-                    if (col) {
-                        cellEl.style.backgroundColor = col;
-                        cellEl.classList.add('has-block');
-                    } else {
-                        cellEl.style.backgroundColor = 'var(--grid-bg)';
-                        cellEl.classList.remove('has-block');
-                    }
-                }
-            }
-        }
-
-        function checkLineClears() {
-            const rowsToClear = [];
-            const colsToClear = [];
-
-            for (let r = 0; r < GRID_SIZE; r++) {
-                if (gridState[r].every(c => c !== null)) {
-                    rowsToClear.push(r);
-                }
-            }
-
-            for (let c = 0; c < GRID_SIZE; c++) {
-                let isFull = true;
-                for (let r = 0; r < GRID_SIZE; r++) {
-                    if (gridState[r][c] === null) {
-                        isFull = false;
-                        break;
-                    }
-                }
-                if (isFull) colsToClear.push(c);
-            }
-
-            const lines = rowsToClear.length + colsToClear.length;
-
-            if (lines > 0) {
-                currentCombo++;
-                if (currentCombo > maxComboThisGame) maxComboThisGame = currentCombo;
-
-                const comboMultiplier = 1 + (currentCombo - 1) * 0.5;
-                const earnedPoints = Math.floor((lines * 100) * comboMultiplier);
-                score += earnedPoints;
-
-                showComboFloatingToast(lines, earnedPoints, currentCombo);
-
-                animateClearEffects(rowsToClear, colsToClear, () => {
-                    rowsToClear.forEach(r => {
-                        gridState[r] = Array(GRID_SIZE).fill(null);
-                    });
-                    colsToClear.forEach(c => {
-                        for (let r = 0; r < GRID_SIZE; r++) gridState[r][c] = null;
-                    });
-
-                    drawBoardGrid();
-                    updateScoreUI();
-                    checkGameOver();
-                });
-            } else {
-                currentCombo = 0;
-                updateScoreUI();
-            }
-        }
-
-        function animateClearEffects(rows, cols, onComplete) {
-            const clearCells = [];
-
-            rows.forEach(r => {
-                for (let c = 0; c < GRID_SIZE; c++) {
-                    clearCells.push(els.gameGrid.children[r * GRID_SIZE + c]);
-                }
-            });
-
-            cols.forEach(c => {
-                for (let r = 0; r < GRID_SIZE; r++) {
-                    const cell = els.gameGrid.children[r * GRID_SIZE + c];
-                    if (!clearCells.includes(cell)) clearCells.push(cell);
-                }
-            });
-
-            clearCells.forEach(cell => {
-                if (cell) cell.classList.add('cell-clearing');
-            });
-
-            setTimeout(() => {
-                clearCells.forEach(cell => {
-                    if (cell) cell.classList.remove('cell-clearing');
-                });
-                onComplete();
-            }, 420);
-        }
-
-        function showComboFloatingToast(lines, points, combo) {
-            if (!els.toastContainer) return;
-            const toast = document.createElement('div');
-            toast.className = 'combo-toast';
-            toast.style.cssText = `
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                background-color: rgba(11, 15, 25, 0.95);
-                border: 1.5px solid var(--neon-green);
-                box-shadow: 0 10px 20px rgba(0,0,0,0.5);
-                padding: 10px 20px;
-                border-radius: 14px;
-                pointer-events: none;
-                margin-top: 15px;
-            `;
-
-            let txt = '';
-            if (combo > 1) {
-                txt += `<span style="color:var(--neon-green); font-size:11px; font-weight:800; letter-spacing:1px; margin-bottom: 2px;">COMBO x${combo}</span>`;
-            }
-            txt += `<span style="font-size:12px; font-weight:bold; color:#fff;">${lines} LINE CLEAR!</span>`;
-            txt += `<span style="color:var(--neon-gold); font-size:15px; font-weight:900; margin-top:1px;">+${points}pts</span>`;
-
-            toast.innerHTML = txt;
-            els.toastContainer.appendChild(toast);
-
-            setTimeout(() => {
-                toast.remove();
-            }, 1250);
-        }
-
-        function checkGameOver() {
-            let spaceFound = false;
-
-            for (let i = 0; i < 3; i++) {
-                const block = holderBlocks[i];
-                if (!block) continue;
-
-                for (let r = 0; r < GRID_SIZE; r++) {
-                    for (let c = 0; c < GRID_SIZE; c++) {
-                        const startRow = r - Math.floor(block.shape.length / 2);
-                        const startCol = c - Math.floor(block.shape[0].length / 2);
-
-                        if (checkFit(block, startRow, startCol)) {
-                            spaceFound = true;
-                            break;
-                        }
-                    }
-                    if (spaceFound) break;
-                }
-                if (spaceFound) break;
-            }
-
-            if (!spaceFound && holderBlocks.some(b => b !== null)) {
-                if (els.finalScore) els.finalScore.textContent = score;
-                if (els.finalCombo) els.finalCombo.textContent = `x${maxComboThisGame}`;
-                openModal(els.gameoverModal);
-            }
-        }
-
-        function highlightSelectedHolder(index) {
-            els.holders.forEach((h, idx) => {
-                if (idx === index) {
-                    h.classList.add('selected');
-                } else {
-                    h.classList.remove('selected');
-                }
-            });
-            if (els.guideText) {
-                els.guideText.innerHTML = `👉 <span style="color:var(--neon-green); font-weight:bold;">盤面の置きたい場所（中心のマス）をタップして配置！</span>`;
-            }
-        }
-
-        function clearHolderSelection() {
-            els.holders.forEach(h => h?.classList.remove('selected'));
-            if (els.guideText) {
-                els.guideText.textContent = "💡 下のブロックをスライドするか、タップして選んでね！";
-            }
-        }
-
-        function openModal(modal) {
-            if (!modal) return;
-            modal.classList.add('show');
-        }
-
-        function closeModal(modal) {
-            if (!modal) return;
-            modal.classList.remove('show');
-        }
-
-        function showCustomAlert(msg) {
-            if (!els.customAlert) return;
-            els.customAlert.textContent = msg;
-            els.customAlert.classList.add('show');
-            if (els.guideText) {
-                els.guideText.innerHTML = `⚠️ <span style="color:#f43f5e; font-weight:bold;">${msg}</span>`;
-            }
-            setTimeout(() => {
-                els.customAlert?.classList.remove('show');
-                if (selectedBlockIndex !== null && els.guideText) {
-                    els.guideText.innerHTML = `👉 <span style="color:var(--neon-green); font-weight:bold;">盤面の置きたい場所（中心のマス）をタップして配置！</span>`;
-                } else if (els.guideText) {
-                    els.guideText.textContent = "💡 下のブロックをスライドするか、タップして選んでね！";
-                }
-            }, 2500);
-        }
-
-        function bootloader() {
-            const success = cacheElements();
-            if (!success) {
-                setTimeout(bootloader, 50);
-                return;
-            }
-
-            setupPointerDragSystem();
-            
-            if (els.btnRestart) els.btnRestart.addEventListener('click', initGame);
-            if (els.btnInfo) els.btnInfo.addEventListener('click', () => openModal(els.infoModal));
-            if (els.btnCloseInfo) els.btnCloseInfo.addEventListener('click', () => closeModal(els.infoModal));
-
-            // ゲーム盤面・ホルダー以外をクリックした時はタップ選択を解除
-            document.addEventListener('click', (e) => {
-                if (!e.target.closest('.block-holder') && !e.target.closest('.board-cell') && !e.target.closest('#btn-info') && !e.target.closest('#info-modal')) {
-                    selectedBlockIndex = null;
-                    clearHolderSelection();
-                }
-            });
-
-            // 画面アスペクト比の変更やリサイズ発生時に、中のプレビューブロックを綺麗に再配置
-            window.addEventListener('resize', () => {
-                for (let i = 0; i < 3; i++) {
-                    renderHolderBlock(i);
-                }
-            });
-
-            initGame();
-        }
-
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', bootloader);
-        } else {
-            bootloader();
-        }
-    </script>
+  </section>
+
+  <!-- フッター -->
+  <footer class="bg-slate-950 text-slate-400 py-12 border-t border-slate-900">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+      <div class="flex items-center space-x-2 text-white">
+        <i data-lucide="sprout" class="w-6 h-6 text-emerald-400"></i>
+        <span class="font-black text-lg">アグリテック高等学院</span>
+      </div>
+      <p class="text-xs">
+        &copy; 2026 アグリテック高等学院 All Rights Reserved. ※本サイトは農業高校PRを目的としたデモランディングページです。
+      </p>
+    </div>
+  </footer>
+
+  <!-- 制御用JavaScript -->
+  <script>
+    // Lucide Icons 初期化
+    document.addEventListener("DOMContentLoaded", () => {
+      lucide.createIcons();
+    });
+
+    // タブ切り替えロジック
+    function switchTab(activeTabId) {
+      // 全てのコンテンツエリアを非表示にする
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.add('hidden');
+      });
+      // 選択したコンテンツを表示する
+      document.getElementById(activeTabId).classList.remove('hidden');
+
+      // 全てのボタンのデザインをデフォルトに戻す
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-emerald-600', 'text-white', 'shadow-md', 'shadow-emerald-100');
+        btn.classList.add('bg-white', 'text-slate-600', 'hover:bg-slate-100');
+      });
+
+      // 選択したボタンのみ色を強調する
+      const activeBtnId = 'btn-' + activeTabId;
+      const activeBtn = document.getElementById(activeBtnId);
+      if (activeBtn) {
+        activeBtn.classList.remove('bg-white', 'text-slate-600', 'hover:bg-slate-100');
+        activeBtn.classList.add('bg-emerald-600', 'text-white', 'shadow-md', 'shadow-emerald-100');
+      }
+    }
+
+    // よくある質問 (FAQ) アコーディオン開閉
+    function toggleFaq(answerId) {
+      const answerElement = document.getElementById(answerId);
+      const iconId = 'faq-icon-' + answerId.split('-')[2];
+      const iconElement = document.getElementById(iconId);
+
+      if (answerElement.classList.contains('hidden')) {
+        answerElement.classList.remove('hidden');
+        if (iconElement) iconElement.classList.add('rotate-180');
+      } else {
+        answerElement.classList.add('hidden');
+        if (iconElement) iconElement.classList.remove('rotate-180');
+      }
+    }
+
+    // フォーム種類切り替え (体験入学 vs 資料請求)
+    function switchFormType(type) {
+      const labelOc = document.getElementById('label-type-oc');
+      const labelDoc = document.getElementById('label-type-doc');
+      const dateContainer = document.getElementById('form-date-container');
+      const selectDate = document.getElementById('select-date');
+      const btnText = document.getElementById('btn-submit-text');
+
+      if (type === 'oc') {
+        // 体験入学選択時
+        labelOc.className = "flex items-center justify-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 border-emerald-500 bg-emerald-50 text-emerald-800 font-bold";
+        labelDoc.className = "flex items-center justify-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 text-slate-600 font-semibold";
+        dateContainer.classList.remove('hidden');
+        selectDate.setAttribute('required', 'required');
+        btnText.textContent = 'オープンキャンパスの予約を確定する';
+      } else {
+        // 資料請求選択時
+        labelOc.className = "flex items-center justify-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 text-slate-600 font-semibold";
+        labelDoc.className = "flex items-center justify-center p-3 border rounded-xl cursor-pointer hover:bg-slate-50 border-emerald-500 bg-emerald-50 text-emerald-800 font-bold";
+        dateContainer.classList.add('hidden');
+        selectDate.removeAttribute('required');
+        btnText.textContent = '無料でパンフレットを請求する';
+      }
+    }
+
+    // 送信シミュレーション
+    function handleFormSubmit(event) {
+      event.preventDefault(); // 実際の遷移を抑制
+      
+      const btnSubmit = document.getElementById('btn-submit');
+      const successAlert = document.getElementById('form-success-alert');
+
+      // 送信中アニメーション演出
+      btnSubmit.innerHTML = `<svg class="animate-spin h-5 w-5 mr-2 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> 送信中...`;
+      btnSubmit.setAttribute('disabled', 'disabled');
+
+      setTimeout(() => {
+        // 送信完了状態にする
+        btnSubmit.classList.add('hidden');
+        successAlert.classList.remove('hidden');
+        
+        // フォームのリセット
+        document.getElementById('oc-form').reset();
+      }, 1200);
+    }
+  </script>
 </body>
 </html>
